@@ -5,19 +5,18 @@ from pathlib import Path
 from typing import Annotated
 from uuid import UUID
 
-import httpx
 import typer
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
-from prospector.analyzers.fetcher import PublicFetcher, USER_AGENT
-from prospector.analyzers.website import HtmlWebsiteAnalyzer
 from prospector.config import Settings
 from prospector.database.repository import Repository
 from prospector.database.session import create_database_engine, create_session_factory, initialize_database, session_scope
 from prospector.discovery.base import DiscoveryError
-from prospector.discovery.geoapify import CATEGORIES, GeoapifyProvider
+from prospector.discovery.geoapify import CATEGORIES
+from prospector.enrichment.manual import apply_enrichment
 from prospector.models import ScanStatus
+from prospector.pipeline import scan_pipeline
 from prospector.reports.terminal import detail, export_json, ranking
 from prospector.scoring.weights import ScoringConfig
 from prospector.service import run_scan
@@ -76,13 +75,11 @@ def scan(
     try:
         scoring = ScoringConfig.load(settings.scoring_config)
         with database(settings) as factory:
-            # Separate clients keep provider credentials away from business websites.
-            with httpx.Client(trust_env=False, headers={"User-Agent": USER_AGENT}) as provider_client, httpx.Client(trust_env=False) as website_client:
-                provider = GeoapifyProvider(settings, provider_client)
-                analyzer = HtmlWebsiteAnalyzer(PublicFetcher(website_client, settings), settings.max_links)
+            with scan_pipeline(settings) as (provider, analyzer):
                 typer.echo("Buscando negócios na Geoapify e analisando websites públicos...")
                 result = run_scan(query, location, limit, provider, analyzer, factory, scoring,
-                                  progress=lambda done, total: typer.echo(f"Avaliados: {done}/{total}"))
+                                  progress=lambda done, total: typer.echo(f"Avaliados: {done}/{total}"),
+                                  enrich=apply_enrichment)
             with session_scope(factory) as session:
                 repo = Repository(session)
                 typer.echo(ranking(repo, result))
@@ -137,6 +134,18 @@ def categories():
     for name, category in sorted(CATEGORIES.items()):
         typer.echo(f"{name}: {category}")
     typer.echo("Barbearias usa a categoria de cabeleireiros; pode incluir salões de beleza.")
+
+
+@app.command()
+def serve(
+    host: Annotated[str, typer.Option(help="Interface; mantenha local, a API não tem autenticação.")] = "127.0.0.1",
+    port: Annotated[int, typer.Option(min=1, max=65535)] = 8000,
+    reload: Annotated[bool, typer.Option(help="Recarregar ao editar o código.")] = False,
+):
+    """Iniciar a API HTTP usada pelo frontend web."""
+    import uvicorn
+
+    uvicorn.run("prospector.api.app:create_app", factory=True, host=host, port=port, reload=reload)
 
 
 def main():

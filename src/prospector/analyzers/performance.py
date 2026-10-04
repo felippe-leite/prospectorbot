@@ -1,4 +1,4 @@
-"""Optional future mobile measurement contract, independent from HTML checks."""
+"""Mobile measurement contract, independent from HTML checks."""
 
 from typing import Protocol
 

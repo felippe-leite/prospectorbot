@@ -25,6 +25,15 @@ CATEGORIES = {
     "hoteis": "accommodation.hotel", "hotel": "accommodation.hotel",
     "padarias": "commercial.food_and_drink.bakery", "padaria": "commercial.food_and_drink.bakery",
     "pet shops": "commercial.pet", "pet shop": "commercial.pet",
+    # English aliases used by the web interface.
+    "barbershop": "service.beauty.hairdresser", "barbershops": "service.beauty.hairdresser",
+    "beauty salon": "service.beauty.hairdresser", "beauty salons": "service.beauty.hairdresser",
+    "restaurant": "catering.restaurant", "restaurants": "catering.restaurant",
+    "cafe": "catering.cafe", "cafes": "catering.cafe",
+    "dentist": "healthcare.dentist", "dentists": "healthcare.dentist",
+    "gym": "sport.fitness", "gyms": "sport.fitness",
+    "hotels": "accommodation.hotel",
+    "bakery": "commercial.food_and_drink.bakery", "bakeries": "commercial.food_and_drink.bakery",
 }
 
 

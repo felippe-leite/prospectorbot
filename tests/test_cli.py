@@ -40,7 +40,7 @@ def test_cli_30_businesses_full_flow_history_and_report(tmp_path, monkeypatch):
             return httpx.Response(404)
         return httpx.Response(200, text=html, headers={"content-type": "text/html"})
     original_client = httpx.Client
-    monkeypatch.setattr("prospector.main.httpx.Client", lambda **kwargs: original_client(transport=httpx.MockTransport(handler), **kwargs))
+    monkeypatch.setattr("prospector.pipeline.httpx.Client", lambda **kwargs: original_client(transport=httpx.MockTransport(handler), **kwargs))
     report = tmp_path / "reports" / "report.json"  # missing folder is created
     result = runner.invoke(app, ["scan", "--query", "barbearias", "--location", "Campinas, SP", "--limit", "30", "--output", str(report)])
     assert result.exit_code == 0, result.output

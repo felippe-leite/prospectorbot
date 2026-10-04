@@ -9,6 +9,8 @@ from bs4 import BeautifulSoup
 from pydantic import HttpUrl
 
 from prospector.analyzers.fetcher import FetchError, PublicFetcher
+from prospector.analyzers.pagespeed import PageSpeedError
+from prospector.analyzers.performance import MobilePerformanceProvider
 from prospector.enrichment.normalization import (
     SOCIAL_HOSTS, WHATSAPP_HOSTS, host_matches, normalize_website, search_key,
 )
@@ -76,7 +78,8 @@ def parse_html(analysis: WebsiteAnalysis, html: str) -> WebsiteAnalysis:
     analysis.phone = CheckStatus.PRESENT if any(href.lower().startswith("tel:") for href in links) or re.search(
         r"(?:\+55\s*)?\(?\d{2}\)?[\s.-]*\d{4,5}[\s.-]+\d{4}\b", visible_text
     ) else missing
-    analysis.whatsapp = CheckStatus.PRESENT if any(host_matches(item.host, WHATSAPP_HOSTS) for item in normalized) else missing
+    analysis.whatsapp_links = list(dict.fromkeys(item for item in normalized if host_matches(item.host, WHATSAPP_HOSTS)))
+    analysis.whatsapp = CheckStatus.PRESENT if analysis.whatsapp_links else missing
     controls = soup.find_all(["a", "button", "input"])
     analysis.cta = CheckStatus.PRESENT if any(CTA_PATTERN.search(search_key(
         node.get_text(" ", strip=True) + " " + str(node.get("aria-label", "")) + " " + str(node.get("value", ""))
@@ -99,9 +102,11 @@ def parse_html(analysis: WebsiteAnalysis, html: str) -> WebsiteAnalysis:
 
 
 class HtmlWebsiteAnalyzer:
-    def __init__(self, fetcher: PublicFetcher, max_links: int = 5):
+    def __init__(self, fetcher: PublicFetcher, max_links: int = 5,
+                 performance: MobilePerformanceProvider | None = None):
         self.fetcher = fetcher
         self.max_links = max_links
+        self.performance = performance
 
     def analyze(self, business: Business, scan_id: UUID) -> WebsiteAnalysis:
         if business.website is None:
@@ -137,6 +142,7 @@ class HtmlWebsiteAnalyzer:
             return analysis
         analysis.status = AnalysisStatus.COMPLETED
         parse_html(analysis, page.text)
+        self._measure_performance(analysis)
         soup = BeautifulSoup(page.text, "html.parser")
         candidates = []
         for anchor in soup.find_all("a", href=True):
@@ -156,3 +162,17 @@ class HtmlWebsiteAnalyzer:
                 analysis.link_checks.append(LinkCheck(url=url, error=str(exc)))
                 analysis.status = AnalysisStatus.PARTIAL
         return analysis
+
+    def _measure_performance(self, analysis: WebsiteAnalysis) -> None:
+        # Only reached after robots.txt allowed our own fetch of this page.
+        if self.performance is None:
+            return
+        try:
+            result = self.performance.measure(analysis.final_url or analysis.requested_url)
+        except PageSpeedError as exc:
+            analysis.errors.append(str(exc))
+            return
+        if result is not None:
+            analysis.mobile_performance_score = result.score
+            analysis.mobile_performance_source = result.evidence.source
+            analysis.evidence.append(result.evidence)

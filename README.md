@@ -1,6 +1,6 @@
 # ProspectorBot
 
-Ferramenta de linha de comando que encontra negócios locais, analisa seus sites e
+Ferramenta (CLI e interface web) que encontra negócios locais, analisa seus sites e
 gera um ranking de possíveis oportunidades para serviços de desenvolvimento web.
 
 O ProspectorBot **não envia mensagens nem faz contato automatizado**. O resultado
@@ -10,13 +10,21 @@ O ProspectorBot **não envia mensagens nem faz contato automatizado**. O resulta
 
 1. Busca negócios de um nicho em uma cidade usando a API da [Geoapify](https://www.geoapify.com/).
 2. Analisa a página inicial de cada site (HTTPS, título, viewport mobile, CTA,
-   agendamento, WhatsApp, redes sociais, links quebrados e tempo de resposta).
+   agendamento, WhatsApp, redes sociais, links quebrados e tempo de resposta) e,
+   quando habilitado, mede a performance mobile com o Google PageSpeed Insights.
 3. Aplica regras baseadas em evidências e calcula um score de 0 a 100.
 4. Salva tudo em SQLite e mostra o ranking no terminal ou em JSON.
 
 Cada oportunidade apontada vem acompanhada das evidências que a sustentam. Quando
 um dado não pode ser verificado, ele fica como desconhecido em vez de virar um
 problema inventado.
+
+## Interface web
+
+Além da CLI, o ProspectorBot tem um dashboard web para iniciar prospecções,
+acompanhar o progresso em tempo real, filtrar leads por score e oportunidade e
+consultar as evidências de cada negócio. Status e notas pessoais ajudam a
+organizar a triagem.
 
 ## Score
 

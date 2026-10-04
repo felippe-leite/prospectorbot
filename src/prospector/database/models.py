@@ -85,3 +85,12 @@ class Score(Base):
     business_id: Mapped[str] = mapped_column(primary_key=True)
     value: Mapped[int] = mapped_column(index=True)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
+class LeadTracking(Base):
+    """Personal status and notes, kept per business across scans."""
+
+    __tablename__ = "lead_tracking"
+
+    business_id: Mapped[str] = mapped_column(ForeignKey("businesses.id"), primary_key=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON)

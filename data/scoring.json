@@ -1,0 +1,8 @@
+{
+  "weights": {
+    "poor_mobile_performance": 25,
+    "no_booking": 20,
+    "no_cta": 15,
+    "missing_viewport": 15
+  }
+}

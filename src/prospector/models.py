@@ -82,8 +82,14 @@ class ScanStatus(StrEnum):
     FAILED = "failed"
 
 
+class ScanKind(StrEnum):
+    DISCOVERY = "discovery"
+    MANUAL = "manual"  # one business re-analyzed with data the user supplied
+
+
 class Scan(DomainModel):
     id: UUID = Field(default_factory=uuid4)
+    kind: ScanKind = ScanKind.DISCOVERY
     query: NonEmptyText
     location: NonEmptyText
     limit: int = Field(default=30, ge=1)
@@ -125,6 +131,7 @@ class WebsiteAnalysis(DomainModel):
     contact_form: CheckStatus = CheckStatus.UNKNOWN
     booking: CheckStatus = CheckStatus.UNKNOWN
     social_links: list[HttpUrl] = Field(default_factory=list)
+    whatsapp_links: list[HttpUrl] = Field(default_factory=list)
     social_presence: CheckStatus = CheckStatus.UNKNOWN
     evidence: list[Evidence] = Field(default_factory=list)
     errors: list[NonEmptyText] = Field(default_factory=list)
@@ -188,3 +195,39 @@ class Score(DomainModel):
         if self.value < 85:
             return ScoreClassification.HIGH
         return ScoreClassification.GOLD_NUGGET
+
+
+class LeadStatus(StrEnum):
+    """Manual, personal triage state; never triggers contact."""
+
+    NEW = "new"
+    REVIEWING = "reviewing"
+    INTERESTING = "interesting"
+    CONTACTED = "contacted"
+    WON = "won"
+    LOST = "lost"
+    IGNORED = "ignored"
+
+
+class LeadTracking(DomainModel):
+    """Personal triage plus contact data the user verified and typed in themselves."""
+
+    business_id: UUID
+    status: LeadStatus = LeadStatus.NEW
+    notes: Annotated[str, Field(max_length=10_000)] = ""
+    website: HttpUrl | None = None
+    no_website: bool = False
+    phone: NonEmptyText | None = None
+    whatsapp: HttpUrl | None = None
+    instagram: HttpUrl | None = None
+    updated_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def validate_website(self) -> "LeadTracking":
+        if self.website is not None and self.no_website:
+            raise ValueError("A lead cannot have a website and be confirmed without one")
+        return self
+
+    @property
+    def has_enrichment(self) -> bool:
+        return bool(self.website or self.no_website or self.phone or self.whatsapp or self.instagram)

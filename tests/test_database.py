@@ -33,6 +33,7 @@ def test_initialization_creates_tables_and_enforces_foreign_keys(tmp_path):
         assert path.exists()
         assert set(inspect(engine).get_table_names()) == {
             "businesses", "scans", "scan_businesses", "website_analyses", "opportunities", "scores",
+            "lead_tracking",
         }
         with engine.connect() as connection:
             assert connection.scalar(text("PRAGMA foreign_keys")) == 1

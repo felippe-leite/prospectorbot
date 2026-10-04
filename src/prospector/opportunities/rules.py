@@ -36,6 +36,14 @@ def evaluate_rules(business: Business, analysis: WebsiteAnalysis | None,
     if business.website_status == WebsiteDiscoveryStatus.CONFIRMED_ABSENT and confirmed:
         add("no_website", confirmed, "Presença web própria", "Ausência de website confirmada nas evidências; avaliar necessidade de um site.",
             ("Landing page", "Site institucional", "Catálogo de serviços"))
+    elif business.website_status == WebsiteDiscoveryStatus.NOT_FOUND:
+        # Not listed is not proof of absence: an opportunity to verify, never scored.
+        unlisted = [item for item in business.evidence if item.code == "website_not_found"] or [Evidence(
+            code="website_not_found", description="Website oficial não informado pela fonte; não comprova ausência.",
+            source=business.source, observed_at=business.discovered_at)]
+        add("website_not_listed", unlisted, "Verificar presença web",
+            "A fonte não informa website oficial. Confirmar manualmente (busca, redes sociais) antes de propor um site; não soma pontos.",
+            ("Landing page", "Site institucional"))
     if business.review_count is not None and business.review_count >= config.established_review_count:
         add("established_reviews", [Evidence(code="review_count", description=f"Fonte informa {business.review_count} avaliações (limiar: {config.established_review_count}); sinal de presença, não prova de orçamento.", source=business.source, observed_at=business.discovered_at)])
     website_usable = (analysis is not None and analysis.status != AnalysisStatus.FAILED
@@ -61,6 +69,10 @@ def evaluate_rules(business: Business, analysis: WebsiteAnalysis | None,
     if analysis.mobile_viewport == CheckStatus.ABSENT:
         add("missing_viewport", html_evidence("mobile_viewport"), "Revisar configuração mobile",
             "Viewport com width=device-width não identificado no HTML; verificar apresentação em dispositivos móveis.", ("Ajustes de responsividade",))
+    if analysis.whatsapp == CheckStatus.ABSENT and not any(item.code == "whatsapp_present" for item in business.evidence):
+        add("no_whatsapp_cta", html_evidence("whatsapp"), "Avaliar contato por WhatsApp",
+            "Link de WhatsApp não identificado no HTML inicial; verificar se o negócio atende por WhatsApp antes de sugerir um CTA.",
+            ("Botão de WhatsApp", "CTA de contato"))
     if analysis.cta == CheckStatus.ABSENT:
         add("no_cta", html_evidence("cta"), "Revisar chamadas para ação",
             "CTA não identificado pelas regras no HTML inicial; verificar conteúdo renderizado antes de propor mudanças.", ("Revisão de CTA", "Otimização de conversão"))

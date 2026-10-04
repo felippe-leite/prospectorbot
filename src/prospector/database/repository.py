@@ -1,13 +1,24 @@
 """Persistence operations; callers own the transaction via session_scope."""
 
+from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.orm import Session
 
 from prospector import models as domain
 from prospector.database import models as tables
+
+
+@dataclass
+class RankedLead:
+    """A scored business as captured by one scan."""
+
+    scan: domain.Scan
+    business: domain.Business
+    score: domain.Score
+    opportunities: list[domain.Opportunity]
 
 
 class Repository:
@@ -179,3 +190,59 @@ class Repository:
             tables.Score.scan_id == str(scan_id),
         ).order_by(tables.Score.value.desc(), tables.Score.business_id))
         return [domain.Score.model_validate(row.payload) for row in rows]
+
+    def list_ranked(self, scan_id: UUID | None = None, business_id: UUID | None = None) -> list[RankedLead]:
+        """Scored snapshots, newest scan first and highest score first within a scan."""
+        statement = (select(tables.Score, tables.ScanBusiness, tables.Scan)
+                     .join(tables.ScanBusiness, and_(tables.ScanBusiness.scan_id == tables.Score.scan_id,
+                                                     tables.ScanBusiness.business_id == tables.Score.business_id))
+                     .join(tables.Scan, tables.Scan.id == tables.Score.scan_id)
+                     .order_by(tables.Scan.created_at.desc(), tables.Score.value.desc(), tables.Score.business_id))
+        opportunities = select(tables.Opportunity).order_by(tables.Opportunity.rule_code)
+        if scan_id is not None:
+            statement = statement.where(tables.Score.scan_id == str(scan_id))
+            opportunities = opportunities.where(tables.Opportunity.scan_id == str(scan_id))
+        if business_id is not None:
+            statement = statement.where(tables.Score.business_id == str(business_id))
+            opportunities = opportunities.where(tables.Opportunity.business_id == str(business_id))
+        grouped: dict[tuple[str, str], list[domain.Opportunity]] = {}
+        for row in self.session.scalars(opportunities):
+            grouped.setdefault((row.scan_id, row.business_id), []).append(domain.Opportunity.model_validate(row.payload))
+        scans: dict[str, domain.Scan] = {}
+        results = []
+        for score, snapshot, scan in self.session.execute(statement):
+            if scan.id not in scans:
+                scans[scan.id] = domain.Scan.model_validate(scan.payload)
+            results.append(RankedLead(
+                scan=scans[scan.id], business=domain.Business.model_validate(snapshot.payload),
+                score=domain.Score.model_validate(score.payload),
+                opportunities=grouped.get((score.scan_id, score.business_id), []),
+            ))
+        return results
+
+    def scan_counts(self, gold_threshold: int = 85) -> dict[UUID, tuple[int, int]]:
+        """Scored businesses and Gold Nuggets per scan."""
+        statement = select(tables.Score.scan_id, func.count(),
+                           func.sum(case((tables.Score.value >= gold_threshold, 1), else_=0))
+                           ).group_by(tables.Score.scan_id)
+        return {UUID(scan_id): (total, gold or 0) for scan_id, total, gold in self.session.execute(statement)}
+
+    def get_tracking(self, business_id: UUID) -> domain.LeadTracking:
+        row = self.session.get(tables.LeadTracking, str(business_id))
+        return domain.LeadTracking.model_validate(row.payload) if row else domain.LeadTracking(business_id=business_id)
+
+    def list_tracking(self) -> dict[UUID, domain.LeadTracking]:
+        return {UUID(row.business_id): domain.LeadTracking.model_validate(row.payload)
+                for row in self.session.scalars(select(tables.LeadTracking))}
+
+    def save_tracking(self, tracking: domain.LeadTracking) -> domain.LeadTracking:
+        if self.session.get(tables.Business, str(tracking.business_id)) is None:
+            raise ValueError("Tracking requires a known business")
+        payload = tracking.model_dump(mode="json")
+        row = self.session.get(tables.LeadTracking, str(tracking.business_id))
+        if row is None:
+            self.session.add(tables.LeadTracking(business_id=str(tracking.business_id), payload=payload))
+        else:
+            row.payload = payload
+        self.session.flush()
+        return tracking
