@@ -2,10 +2,13 @@
 
 from collections.abc import Iterator
 from contextlib import asynccontextmanager
+import logging
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+import httpx
+
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
@@ -16,12 +19,13 @@ from prospector.api.schemas import (
     Appearance, Health, LeadDetail, LeadSummary, OpportunityDetail, ScanRequest, ScanSummary, Stats,
     TrackingUpdate,
 )
+from prospector.analyzers.fetcher import USER_AGENT
 from prospector.config import Settings
 from prospector.database.repository import Repository
 from prospector.database.session import create_database_engine, create_session_factory, initialize_database, session_scope
 from prospector.discovery.base import DiscoveryError
 from prospector.discovery.categories import CATEGORIES
-from prospector.discovery.geoapify import category_for
+from prospector.discovery.geoapify import GeoapifyProvider, category_for
 from prospector.models import LeadStatus, LeadTracking, Scan, ScanKind, ScoreClassification, utc_now
 from prospector.opportunities.tags import OpportunityTag
 from prospector.pipeline import scan_pipeline
@@ -42,16 +46,19 @@ def create_app(settings: Settings | None = None, pipeline: Pipeline = scan_pipel
         factory = create_session_factory(engine)
         app.state.factory = factory
         app.state.runner = ScanRunner(settings, factory, scoring, pipeline)
-        try:
-            yield
-        finally:
-            app.state.runner.shutdown()
-            engine.dispose()
+        # Separate client: location lookups never share a connection with business websites.
+        with httpx.Client(trust_env=False, headers={"User-Agent": USER_AGENT}) as geo_client:
+            app.state.locations = GeoapifyProvider(settings, geo_client)
+            try:
+                yield
+            finally:
+                app.state.runner.shutdown()
+                engine.dispose()
 
     app = FastAPI(title="ProspectorBot API", version=VERSION, lifespan=lifespan)
     # No credentials or authentication: the API is meant to listen on localhost only.
     app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins,
-                       allow_methods=["GET", "POST", "PATCH"], allow_headers=["Content-Type"])
+                       allow_methods=["GET", "POST", "PATCH", "DELETE"], allow_headers=["Content-Type"])
 
     def session(request: Request) -> Iterator[Session]:
         with session_scope(request.app.state.factory) as current:
@@ -85,6 +92,25 @@ def create_app(settings: Settings | None = None, pipeline: Pipeline = scan_pipel
     def categories():
         """Business types accepted by discovery, for autocomplete."""
         return sorted(CATEGORIES)
+
+    @app.get("/api/locations", response_model=list[str])
+    def locations(request: Request, q: Annotated[str, Query(min_length=2, max_length=80)]):
+        """City/region suggestions for the prospecting form (Brazil)."""
+        if settings.geoapify_api_key is None:
+            return []
+        try:
+            return request.app.state.locations.suggest_locations(q.strip())
+        except DiscoveryError as exc:
+            logging.getLogger(__name__).info("Location suggestions unavailable: %s", exc)
+            raise HTTPException(502, "Location suggestions are unavailable right now.")
+
+    @app.delete("/api/data", status_code=204)
+    def clear_data(repo: Repo, scans: Runner):
+        """Remove all prospecting data, statuses and notes. Cannot be undone."""
+        if scans.busy:
+            raise HTTPException(409, "Wait for the running prospecting session to finish.")
+        repo.clear_all()
+        return Response(status_code=204)
 
     @app.get("/api/stats", response_model=Stats)
     def get_stats(repo: Repo):

@@ -6,6 +6,7 @@ import { ArrowRight, Gauge, Gem, Loader2, Radar, Sparkles, Store } from "lucide-
 
 import { PageHeader } from "@/components/layout/page-header"
 import { LeadTable, RECENT_COLUMNS } from "@/components/lead-table"
+import { ClearDataButton } from "@/components/clear-data-button"
 import { StatCard } from "@/components/stat-card"
 import { CardsSkeleton, EmptyState, ErrorState, TableSkeleton } from "@/components/states"
 import { Button } from "@/components/ui/button"
@@ -45,9 +46,12 @@ export function DashboardView() {
         title="Dashboard"
         description="Everything ProspectorBot has unearthed so far."
         actions={
-          <Button asChild>
-            <Link href="/prospect"><Radar /> New prospect</Link>
-          </Button>
+          <>
+            {stats.data && stats.data.businesses > 0 && <ClearDataButton />}
+            <Button asChild>
+              <Link href="/prospect"><Radar /> New prospect</Link>
+            </Button>
+          </>
         }
       />
 

@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import and_, case, func, select
+from sqlalchemy import and_, case, delete, func, select
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.orm import Session
 
@@ -226,6 +226,12 @@ class Repository:
                            func.sum(case((tables.Score.value >= gold_threshold, 1), else_=0))
                            ).group_by(tables.Score.scan_id)
         return {UUID(scan_id): (total, gold or 0) for scan_id, total, gold in self.session.execute(statement)}
+
+    def clear_all(self) -> None:
+        """Delete every scan, business, analysis, score, opportunity, status and note."""
+        for table in (tables.Opportunity, tables.Score, tables.WebsiteAnalysis, tables.ScanBusiness,
+                      tables.LeadTracking, tables.Business, tables.Scan):
+            self.session.execute(delete(table))
 
     def get_tracking(self, business_id: UUID) -> domain.LeadTracking:
         row = self.session.get(tables.LeadTracking, str(business_id))

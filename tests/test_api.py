@@ -135,6 +135,7 @@ def test_only_one_scan_runs_at_a_time_and_progress_is_live(tmp_path):
         assert progress == {"stage": "website_analysis", "analyzed": 1, "total": 2,
                             "current_business": "Beta Cortes", "has_website": True}
         assert client.post("/api/scans", json={"query": "barbearias", "location": "Campinas"}).status_code == 409
+        assert client.delete("/api/data").status_code == 409
         release.set()
         assert wait_for(client, scan_id)["scan"]["status"] == "completed"
 
@@ -167,3 +168,37 @@ def test_manual_enrichment_rescores_and_survives_new_scans(client):
     client.patch(f"/api/leads/{alpha['business_id']}", json={"no_website": False, "instagram": None})
     wait_for(client, client.post(f"/api/leads/{alpha['business_id']}/rescore").json()["scan"]["id"])
     assert client.get(f"/api/leads/{alpha['business_id']}").json()["score"] == 15
+
+
+def test_location_suggestions_strip_country_and_are_cached(client, monkeypatch):
+    import httpx
+    from prospector.discovery.geoapify import GeoapifyProvider
+    monkeypatch.setattr("prospector.discovery.geoapify.time.sleep", lambda _: None)
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        assert request.url.params["filter"] == "countrycode:br" and request.url.params["apiKey"] == "test-key"
+        return httpx.Response(200, json={"results": [
+            {"result_type": "city", "formatted": "Campinas, SP, Brasil", "country": "Brasil"},
+            {"result_type": "city", "formatted": "Campina Grande, PB, Brasil", "country": "Brasil"},
+            {"result_type": "street", "formatted": "Rua Campinas, Santos, SP, Brasil", "country": "Brasil"},
+        ]})
+
+    settings = Settings(database_path="unused.db", geoapify_api_key="test-key")
+    client.app.state.locations = GeoapifyProvider(settings, httpx.Client(transport=httpx.MockTransport(handler)))
+    assert client.get("/api/locations", params={"q": "Campin"}).json() == ["Campinas, SP", "Campina Grande, PB"]
+    client.get("/api/locations", params={"q": "campin"})
+    assert len(calls) == 1
+    assert client.get("/api/locations", params={"q": "C"}).status_code == 422
+
+
+def test_clear_data_removes_everything(client):
+    wait_for(client, client.post("/api/scans", json={"query": "barbearias", "location": "Campinas"}).json()["scan"]["id"])
+    lead = client.get("/api/leads").json()[0]
+    client.patch(f"/api/leads/{lead['business_id']}", json={"notes": "x", "no_website": True})
+    assert client.delete("/api/data").status_code == 204
+    assert client.get("/api/leads").json() == [] and client.get("/api/scans").json() == []
+    assert client.get("/api/stats").json()["businesses"] == 0
+    # Running a new scan afterwards works on the emptied database.
+    assert wait_for(client, client.post("/api/scans", json={"query": "barbearias", "location": "Campinas"}).json()["scan"]["id"])["analyzed"] == 2

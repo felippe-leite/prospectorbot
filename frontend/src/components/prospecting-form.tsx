@@ -8,6 +8,7 @@ import useSWR, { useSWRConfig } from "swr"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { LocationInput } from "@/components/location-input"
 import { ApiError } from "@/lib/api/client"
 import { scansPath, startScan } from "@/lib/api/scans"
 import { categoriesPath } from "@/lib/api/system"
@@ -81,8 +82,8 @@ export function ProspectingForm({ disabled = false }: { disabled?: boolean }) {
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="location">Location</Label>
-        <Input id="location" value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Campinas, SP" required maxLength={120} className="h-10" />
-        <p className="text-xs text-muted-foreground">City and state work best.</p>
+        <LocationInput id="location" value={location} onChange={setLocation} />
+        <p className="text-xs text-muted-foreground">Start typing and pick a city or region from the suggestions.</p>
       </div>
 
       <div className="flex flex-col gap-2">

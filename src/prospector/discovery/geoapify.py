@@ -26,11 +26,34 @@ def category_for(query: str) -> str:
     raise DiscoveryError("Nicho não reconhecido. Use 'prospector categories' ou uma categoria Geoapify.")
 
 
+LOCATION_COUNTRY = "br"
+LOCATION_CACHE_SIZE = 500
+
+
 class GeoapifyProvider:
     def __init__(self, settings: Settings, client: httpx.Client):
         self.settings = settings
         self.client = client
         self._last_request = 0.0
+        self._locations: dict[str, list[str]] = {}
+
+    def suggest_locations(self, text: str, limit: int = 6) -> list[str]:
+        """City/region names that discovery geocodes back to the same place."""
+        key = search_key(text)
+        if key not in self._locations:
+            payload = self._get("v1/geocode/autocomplete", text=text, lang="pt", limit=limit, format="json",
+                                filter=f"countrycode:{LOCATION_COUNTRY}")
+            labels = []
+            for item in payload.get("results", []):
+                parts = [part.strip() for part in str(item.get("formatted") or "").split(",") if part.strip()]
+                if parts and parts[-1] == item.get("country"):
+                    parts.pop()  # "Campinas, SP, Brasil" -> "Campinas, SP"
+                if parts and item.get("result_type") in {"city", "district", "suburb", "county", "postcode"}:
+                    labels.append(", ".join(parts))
+            if len(self._locations) >= LOCATION_CACHE_SIZE:
+                self._locations.clear()
+            self._locations[key] = list(dict.fromkeys(labels))
+        return self._locations[key]
 
     def _get(self, endpoint: str, **params) -> dict:
         key = self.settings.geoapify_api_key

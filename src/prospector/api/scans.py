@@ -51,6 +51,11 @@ class ScanRunner:
         self._progress: ScanProgress | None = None
         self._thread: threading.Thread | None = None
 
+    @property
+    def busy(self) -> bool:
+        with self._lock:
+            return self._active is not None
+
     def progress(self, scan_id: UUID) -> ScanProgress | None:
         with self._lock:
             if self._active is not None and self._active.id == scan_id:
