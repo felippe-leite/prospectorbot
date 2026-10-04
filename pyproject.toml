@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling>=1.26,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "prospector-bot"
+version = "0.1.0"
+description = "Evidence-based discovery of freelance web development opportunities."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.27,<1",
+    "beautifulsoup4>=4.12,<5",
+    "SQLAlchemy>=2.0,<3",
+    "typer>=0.12,<1",
+    "pydantic>=2.9,<3",
+    "python-dotenv>=1.0,<2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10"]
+
+[project.scripts]
+prospector = "prospector.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/prospector"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra"
