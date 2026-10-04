@@ -14,42 +14,9 @@ O ProspectorBot **não envia mensagens nem faz contato automatizado**. O resulta
 3. Aplica regras baseadas em evidências e calcula um score de 0 a 100.
 4. Salva tudo em SQLite e mostra o ranking no terminal ou em JSON.
 
-## Instalação
-
-Requer Python 3.12+.
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e '.[dev]'
-```
-
-## Configuração
-
-Crie uma API key gratuita na [Geoapify](https://myprojects.geoapify.com/) e
-coloque-a no arquivo `.env`:
-
-```bash
-cp .env.example .env
-# edite .env e preencha GEOAPIFY_API_KEY
-```
-
-O `.env` é lido automaticamente e não é versionado. Outras opções (caminho do
-banco, timeout, intervalo entre requests) estão documentadas em `.env.example`.
-
-## Uso
-
-```bash
-prospector scan --query "barbearias" --location "Campinas, SP" --limit 30
-prospector leads                      # ranking do último scan
-prospector show 1                     # detalhes e evidências do 1º colocado
-prospector leads --output report.json # exporta o relatório
-prospector categories                 # nichos suportados
-```
-
-Nichos suportados: barbearias, salão de beleza, restaurantes, cafeterias,
-dentistas, academias, hotéis, padarias e pet shops. Também aceita uma
-[categoria Geoapify](https://apidocs.geoapify.com/docs/places/) diretamente.
+Cada oportunidade apontada vem acompanhada das evidências que a sustentam. Quando
+um dado não pode ser verificado, ele fica como desconhecido em vez de virar um
+problema inventado.
 
 ## Score
 
@@ -66,21 +33,10 @@ dentistas, academias, hotéis, padarias e pet shops. Também aceita uma
 | Presença em redes sociais | 5 |
 
 Classificação: **Low** (0–29), **Moderate** (30–49), **Good** (50–69),
-**High** (70–84) e **Gold Nugget** (85–100). Os pesos podem ser alterados via
-JSON em `PROSPECTOR_SCORING_CONFIG` (veja `src/prospector/scoring/weights.py`).
-
-## Testes
-
-```bash
-python -m pytest -q
-```
-
-Os testes não precisam de internet nem de API key.
+**High** (70–84) e **Gold Nugget** (85–100).
 
 ## Uso responsável
 
 - Respeita `robots.txt`, identifica-se como `ProspectorBot/0.1` e espaça as requests.
 - Não contorna CAPTCHA, login ou rate limits, nem coleta dados pessoais.
-- Feito para rodar localmente: não exponha como serviço web que aceite URLs arbitrárias.
-- Dados © [OpenStreetMap](https://www.openstreetmap.org/copyright) via Geoapify;
-  mantenha a atribuição ao compartilhar relatórios.
+- Dados © [OpenStreetMap](https://www.openstreetmap.org/copyright) via Geoapify.
