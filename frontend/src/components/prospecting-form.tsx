@@ -3,21 +3,26 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2, Pickaxe } from "lucide-react"
-import { useSWRConfig } from "swr"
+import useSWR, { useSWRConfig } from "swr"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ApiError } from "@/lib/api/client"
 import { scansPath, startScan } from "@/lib/api/scans"
+import { categoriesPath } from "@/lib/api/system"
 
-// All of these are aliases accepted by the backend (src/prospector/discovery/geoapify.py).
-const SUGGESTIONS = ["Barbershops", "Beauty salons", "Restaurants", "Cafes", "Dentists", "Gyms", "Bakeries", "Pet shops", "Hotels"]
+// Quick picks; all are accepted by the backend (src/prospector/discovery/categories.py).
+const SUGGESTIONS = [
+  "Barbearias", "Salões de beleza", "Restaurantes", "Oficinas mecânicas", "Dentistas",
+  "Academias", "Clínicas", "Pet shops", "Advogados", "Pousadas",
+]
 
 export function ProspectingForm({ disabled = false }: { disabled?: boolean }) {
   const router = useRouter()
   const { mutate } = useSWRConfig()
-  const [query, setQuery] = useState("Barbershops")
+  const { data: categories } = useSWR<string[]>(categoriesPath, { revalidateOnFocus: false })
+  const [query, setQuery] = useState("Barbearias")
   const [location, setLocation] = useState("")
   const [limit, setLimit] = useState("30")
   const [error, setError] = useState<string | null>(null)
@@ -41,7 +46,20 @@ export function ProspectingForm({ disabled = false }: { disabled?: boolean }) {
     <form onSubmit={submit} className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
         <Label htmlFor="query">Business type</Label>
-        <Input id="query" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Barbershops" required maxLength={120} className="h-10" />
+        <Input
+          id="query"
+          list="business-types"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Barbearias"
+          required
+          maxLength={120}
+          autoComplete="off"
+          className="h-10"
+        />
+        <datalist id="business-types">
+          {categories?.map((name) => <option key={name} value={name} />)}
+        </datalist>
         <div className="flex flex-wrap gap-1.5">
           {SUGGESTIONS.map((suggestion) => (
             <button
@@ -56,7 +74,8 @@ export function ProspectingForm({ disabled = false }: { disabled?: boolean }) {
           ))}
         </div>
         <p className="text-xs text-muted-foreground">
-          Pick a suggestion, or enter a Geoapify category such as <code className="font-mono">catering.fast_food</code>.
+          Start typing to see the {categories ? categories.length : ""} accepted types (Portuguese or English), or enter a
+          Geoapify category such as <code className="font-mono">catering.fast_food</code>.
         </p>
       </div>
 

@@ -50,3 +50,13 @@ def test_explicitly_non_appointment_business_does_not_get_booking_opportunity():
     business = Business(name="Alpha", source="test", category="service.beauty.hairdresser", appointment_based="absent")
     analysis = WebsiteAnalysis(business_id=business.id, scan_id=scan_id, requested_url="https://example.com", status="completed", status_code=200, booking="absent")
     assert OpportunityEngine().evaluate(business, analysis, scan_id) == []
+
+
+def test_appointment_inference_covers_subcategories():
+    scan_id = uuid4()
+    business = Business(name="Alpha", source="test", category="healthcare.clinic_or_praxis.dermatology")
+    analysis = WebsiteAnalysis(business_id=business.id, scan_id=scan_id, requested_url="https://example.com",
+                               status="completed", status_code=200, booking="absent")
+    assert [item.rule_code for item in OpportunityEngine().evaluate(business, analysis, scan_id)] == ["no_booking"]
+    other = Business(name="Beta", source="test", category="healthcare.clinic_or_praxisX")
+    assert OpportunityEngine().evaluate(other, analysis.model_copy(update={"business_id": other.id}), scan_id) == []

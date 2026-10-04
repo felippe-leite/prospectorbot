@@ -101,6 +101,9 @@ def test_repeated_scans_keep_latest_snapshot_per_business(client):
 
 
 def test_scan_validation_errors(client, tmp_path):
+    names = client.get("/api/categories").json()
+    assert "oficina mecanica" in names and "barbershops" in names
+    assert "astronauts" in client.post("/api/scans", json={"query": "astronauts", "location": "Campinas"}).json()["detail"]
     assert client.post("/api/scans", json={"query": "astronauts", "location": "Campinas"}).status_code == 422
     assert client.post("/api/scans", json={"query": "barbearias", "location": "Campinas", "limit": 51}).status_code == 422
     assert client.get("/api/scans/00000000-0000-0000-0000-000000000000").status_code == 404

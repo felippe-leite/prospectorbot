@@ -53,3 +53,15 @@ def test_category_aliases_and_unknown_queries():
     assert category_for("  SALÃO DE BELEZA  ") == "service.beauty.hairdresser"
     with pytest.raises(DiscoveryError):
         category_for("unknown niche")
+
+
+@pytest.mark.parametrize("query, category", [
+    ("Oficina Mecânica", "service.vehicle.repair.car"),
+    ("Lava-jato", "service.vehicle.car_wash"),
+    ("ADVOGADOS", "office.lawyer"),
+    ("clínicas veterinárias", "pet.veterinary"),
+    ("Barbershops", "service.beauty.hairdresser"),
+    ("catering.fast_food.burger", "catering.fast_food.burger"),
+])
+def test_portuguese_and_english_niches(query, category):
+    assert category_for(query) == category

@@ -10,7 +10,7 @@ from prospector.models import (
 from prospector.scoring.weights import ScoringConfig
 
 
-APPOINTMENT_CATEGORIES = {"service.beauty.hairdresser", "service.beauty.massage", "service.beauty.spa", "service.beauty.tattoo", "healthcare.dentist"}
+from prospector.discovery.categories import APPOINTMENT_CATEGORIES
 
 
 @dataclass
@@ -79,7 +79,8 @@ def evaluate_rules(business: Business, analysis: WebsiteAnalysis | None,
     appointment_evidence = []
     if business.appointment_based == CheckStatus.PRESENT:
         appointment_evidence = [item for item in business.evidence if item.code == "appointment_based"]
-    elif business.appointment_based == CheckStatus.UNKNOWN and business.category in APPOINTMENT_CATEGORIES:
+    elif (business.appointment_based == CheckStatus.UNKNOWN and business.category
+          and any(business.category == prefix or business.category.startswith(prefix + ".") for prefix in APPOINTMENT_CATEGORIES)):
         appointment_evidence = [Evidence(code="appointment_category_inference", description=f"Inferência: categoria {business.category} costuma operar com agendamento; confirmar com o negócio.", source=business.source, observed_at=business.discovered_at)]
     if appointment_evidence and analysis.booking == CheckStatus.ABSENT:
         add("no_booking", appointment_evidence + html_evidence("booking"), "Verificar fluxo de agendamento",

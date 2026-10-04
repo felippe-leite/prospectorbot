@@ -13,7 +13,7 @@ from prospector.config import Settings
 from prospector.database.repository import Repository
 from prospector.database.session import create_database_engine, create_session_factory, initialize_database, session_scope
 from prospector.discovery.base import DiscoveryError
-from prospector.discovery.geoapify import CATEGORIES
+from prospector.discovery.categories import CATEGORIES
 from prospector.enrichment.manual import apply_enrichment
 from prospector.models import ScanStatus
 from prospector.pipeline import scan_pipeline

@@ -20,6 +20,7 @@ from prospector.config import Settings
 from prospector.database.repository import Repository
 from prospector.database.session import create_database_engine, create_session_factory, initialize_database, session_scope
 from prospector.discovery.base import DiscoveryError
+from prospector.discovery.categories import CATEGORIES
 from prospector.discovery.geoapify import category_for
 from prospector.models import LeadStatus, LeadTracking, Scan, ScanKind, ScoreClassification, utc_now
 from prospector.opportunities.tags import OpportunityTag
@@ -80,6 +81,11 @@ def create_app(settings: Settings | None = None, pipeline: Pipeline = scan_pipel
         return Health(version=VERSION, discovery_configured=settings.geoapify_api_key is not None,
                       performance_configured=settings.pagespeed_api_key is not None)
 
+    @app.get("/api/categories", response_model=list[str])
+    def categories():
+        """Business types accepted by discovery, for autocomplete."""
+        return sorted(CATEGORIES)
+
     @app.get("/api/stats", response_model=Stats)
     def get_stats(repo: Repo):
         return stats(all_leads(repo), scans=sum(scan.kind == ScanKind.DISCOVERY for scan in repo.list_scans()))
@@ -96,8 +102,8 @@ def create_app(settings: Settings | None = None, pipeline: Pipeline = scan_pipel
         try:
             category_for(body.query)
         except DiscoveryError:
-            raise HTTPException(422, "Unrecognized business type. Try Barbershops, Restaurants, Dentists, "
-                                     "Gyms, Bakeries, Cafes, Hotels or a Geoapify category (e.g. catering.restaurant).")
+            raise HTTPException(422, f"Unrecognized business type “{body.query.strip()}”. Pick one of the suggestions "
+                                     "shown while typing, or use a Geoapify category (e.g. catering.restaurant).")
         try:
             scan = scans.start(body)
         except ScanInProgress as exc:

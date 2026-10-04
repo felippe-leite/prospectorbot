@@ -7,6 +7,7 @@ import httpx
 
 from prospector.config import Settings
 from prospector.discovery.base import DiscoveryError
+from prospector.discovery.categories import CATEGORIES
 from prospector.enrichment.normalization import (
     SOCIAL_HOSTS, WHATSAPP_HOSTS, host_matches, normalize_phone, normalize_text,
     normalize_website, search_key,
@@ -14,33 +15,11 @@ from prospector.enrichment.normalization import (
 from prospector.models import Business, Evidence, WebsiteDiscoveryStatus
 
 
-# Hairdresser covers both hair salons and barbers; the API has no barber-only category.
-CATEGORIES = {
-    "barbearia": "service.beauty.hairdresser", "barbearias": "service.beauty.hairdresser",
-    "salao de beleza": "service.beauty.hairdresser", "saloes de beleza": "service.beauty.hairdresser",
-    "restaurante": "catering.restaurant", "restaurantes": "catering.restaurant",
-    "cafeterias": "catering.cafe", "cafeteria": "catering.cafe",
-    "dentistas": "healthcare.dentist", "dentista": "healthcare.dentist",
-    "academias": "sport.fitness", "academia": "sport.fitness",
-    "hoteis": "accommodation.hotel", "hotel": "accommodation.hotel",
-    "padarias": "commercial.food_and_drink.bakery", "padaria": "commercial.food_and_drink.bakery",
-    "pet shops": "commercial.pet", "pet shop": "commercial.pet",
-    # English aliases used by the web interface.
-    "barbershop": "service.beauty.hairdresser", "barbershops": "service.beauty.hairdresser",
-    "beauty salon": "service.beauty.hairdresser", "beauty salons": "service.beauty.hairdresser",
-    "restaurant": "catering.restaurant", "restaurants": "catering.restaurant",
-    "cafe": "catering.cafe", "cafes": "catering.cafe",
-    "dentist": "healthcare.dentist", "dentists": "healthcare.dentist",
-    "gym": "sport.fitness", "gyms": "sport.fitness",
-    "hotels": "accommodation.hotel",
-    "bakery": "commercial.food_and_drink.bakery", "bakeries": "commercial.food_and_drink.bakery",
-}
-
-
 def category_for(query: str) -> str:
     key = search_key(query)
-    if key in CATEGORIES:
-        return CATEGORIES[key]
+    niche = " ".join(re.sub(r"[-–]", " ", key).split())
+    if niche in CATEGORIES:
+        return CATEGORIES[niche]
     # Advanced users may use a documented Geoapify category directly.
     if re.fullmatch(r"[a-z_]+(?:\.[a-z_]+)+", key):
         return key
